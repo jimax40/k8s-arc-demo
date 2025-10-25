@@ -40,8 +40,9 @@ jobs:
       - name: 🚀 Desplegar a desarrollo
         run: |
           echo "🚀 Desplegando a DESARROLLO..."
-          # AHORA USAMOS LA RUTA QUE ASUMIMOS ES CORRECTA PARA DEV:
-          kubectl apply -f k8s/dev/app-dev.yaml 
+          # CORREGIDO: Aplicamos todos los archivos YAML en el directorio k8s/
+          # Esto aplicará deployment.yaml y service.yaml
+          kubectl apply -f k8s/
 
       - name: ⏳ Esperar que el despliegue esté listo
         run: kubectl rollout status deployment/arc-demo-app --timeout=5m
