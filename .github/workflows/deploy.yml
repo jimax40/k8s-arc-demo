@@ -12,6 +12,13 @@ jobs:
     steps:
     - name: Checkout código
       uses: actions/checkout@v4
+
+      # Añade esto a tu workflow si falla:
+    - name: Setup kubectl
+      run: |
+       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+       chmod +x kubectl
+       sudo mv kubectl /usr/local/bin/
       
     - name: Ver info del runner
       run: |
