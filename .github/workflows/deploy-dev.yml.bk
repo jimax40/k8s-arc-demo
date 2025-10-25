@@ -1,0 +1,58 @@
+name: 🚀 Deploy a DEV
+
+# Este workflow se ejecuta:
+on:
+  # 1. Cuando se hace un 'push' a la rama 'develop'
+  push:
+    branches: [develop]
+  # 2. Permite la ejecución manual desde la interfaz de GitHub
+  workflow_dispatch:
+
+jobs:
+  deploy-dev:
+    name: Desplegar a Desarrollo
+    # CRÍTICO: Indica que debe usar el Actions Runner Controller (ARC)
+    runs-on: mi-runners 
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # CRÍTICO: Instalación de kubectl sin usar 'sudo' para evitar errores de permisos
+      - name: Instalar kubectl
+        run: |
+          # 1. Crear el directorio bin si no existe
+          mkdir -p $HOME/bin
+          # 2. Descargar kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          # 3. Dar permisos de ejecución
+          chmod +x kubectl
+          # 4. Mover al directorio $HOME/bin/
+          mv kubectl $HOME/bin/
+          # 5. Añadir $HOME/bin a PATH solo para esta ejecución
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Verificar cluster
+        run: |
+          echo "🔎 Verificando conexión a Kubernetes..."
+          kubectl get nodes
+
+      - name: 🚀 Desplegar a desarrollo
+        run: |
+          echo "🚀 Desplegando a DESARROLLO..."
+          # CORREGIDO: Aplicamos todos los archivos YAML en el directorio k8s/
+          # Esto aplicará deployment.yaml y service.yaml
+          kubectl apply -f k8s/
+
+      - name: ⏳ Esperar que el despliegue esté listo
+        run: kubectl rollout status deployment/arc-demo-app --timeout=5m
+
+      - name: ✅ Verificar resultado
+        run: |
+          echo "✅ Estado final:"
+          # Muestra todos los pods y servicios en el namespace 'arc-runners'
+          kubectl get pods,svc -n arc-runners
+          echo ""
+          echo "🌐 Aplicación disponible en:"
+          echo "http://localhost:30080 (si usas NodePort)"
+          echo "http://[IP de tu MV]:8080 (si abres port-forward)"

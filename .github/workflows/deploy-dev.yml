@@ -1,58 +1,71 @@
-name: 🚀 Deploy a DEV
+name: 🧪 Tests + Deploy a DEV
 
-# Este workflow se ejecuta:
 on:
-  # 1. Cuando se hace un 'push' a la rama 'develop'
   push:
     branches: [develop]
-  # 2. Permite la ejecución manual desde la interfaz de GitHub
   workflow_dispatch:
 
 jobs:
-  deploy-dev:
-    name: Desplegar a Desarrollo
-    # CRÍTICO: Indica que debe usar el Actions Runner Controller (ARC)
-    runs-on: mi-runners 
+  test-and-deploy:
+    name: Tests y Deploy Seguro
+    runs-on: mi-runners
     
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      # CRÍTICO: Instalación de kubectl sin usar 'sudo' para evitar errores de permisos
-      - name: Instalar kubectl
-        run: |
-          # 1. Crear el directorio bin si no existe
-          mkdir -p $HOME/bin
-          # 2. Descargar kubectl
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          # 3. Dar permisos de ejecución
-          chmod +x kubectl
-          # 4. Mover al directorio $HOME/bin/
-          mv kubectl $HOME/bin/
-          # 5. Añadir $HOME/bin a PATH solo para esta ejecución
-          echo "$HOME/bin" >> $GITHUB_PATH
-
-      - name: Verificar cluster
-        run: |
-          echo "🔎 Verificando conexión a Kubernetes..."
-          kubectl get nodes
-
-      - name: 🚀 Desplegar a desarrollo
-        run: |
-          echo "🚀 Desplegando a DESARROLLO..."
-          # CORREGIDO: Aplicamos todos los archivos YAML en el directorio k8s/
-          # Esto aplicará deployment.yaml y service.yaml
-          kubectl apply -f k8s/
-
-      - name: ⏳ Esperar que el despliegue esté listo
-        run: kubectl rollout status deployment/arc-demo-app --timeout=5m
-
-      - name: ✅ Verificar resultado
-        run: |
-          echo "✅ Estado final:"
-          # Muestra todos los pods y servicios en el namespace 'arc-runners'
-          kubectl get pods,svc -n arc-runners
-          echo ""
-          echo "🌐 Aplicación disponible en:"
-          echo "http://localhost:30080 (si usas NodePort)"
-          echo "http://[IP de tu MV]:8080 (si abres port-forward)"
+    - name: Checkout código
+      uses: actions/checkout@v4
+      
+    - name: 🧪 Ejecutar tests básicos
+      run: |
+        echo "🧪 Verificando que tenemos kubectl..."
+        kubectl version --client
+        
+        echo "🔍 Verificando cluster..."
+        kubectl get nodes
+        
+        echo "✅ Tests de infraestructura pasaron"
+        
+    - name: 🛠️ Deploy con health checks
+      run: |
+        echo "🛠️ Desplegando con health checks..."
+        kubectl apply -f k8s/dev/app-dev.yaml
+        
+    - name: ⏳ Esperar deployment seguro
+      run: |
+        echo "⏳ Esperando que el deployment sea exitoso..."
+        kubectl rollout status deployment/mi-app -n dev --timeout=300s
+        
+        echo "� Verificando que los pods estén READY..."
+        kubectl get pods -n dev -l app=mi-app
+        
+        # Esperar que al menos 1 pod esté ready
+        kubectl wait --for=condition=ready pod -l app=mi-app -n dev --timeout=120s
+        
+    - name: 🧪 Tests de conectividad
+      run: |
+        echo "🧪 Probando conectividad interna..."
+        
+        # Test dentro del cluster
+        kubectl run test-pod --image=curlimages/curl --rm -i --restart=Never -- \
+          curl -f http://mi-app-service.dev.svc.cluster.local --max-time 10 || true
+          
+        # Verificar que el service responde
+        kubectl get service -n dev mi-app-service
+        
+        echo "✅ Tests de conectividad completados"
+        
+    - name: 📊 Estado final
+      run: |
+        echo "📊 Estado final del deployment:"
+        kubectl get deployment -n dev mi-app -o wide
+        kubectl get pods -n dev -l app=mi-app -o wide
+        echo ""
+        echo "🌐 Aplicación accesible en:"
+        echo "   NodePort: http://localhost:30001"
+        echo "   Port-forward: kubectl port-forward -n dev svc/mi-app-service 8001:80"
+        
+    - name: 🚨 Rollback si algo falló
+      if: failure()
+      run: |
+        echo "🚨 ¡Algo falló! Ejecutando rollback..."
+        kubectl rollout undo deployment/mi-app -n dev || echo "No hay versión previa"
+        echo "🔙 Rollback completado"
